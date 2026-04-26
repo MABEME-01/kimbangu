@@ -10,26 +10,25 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { CATEGORIES, type CategoryValue } from "@/lib/categories";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useCategories, fetchCategories, categoryLabel } from "@/lib/categories";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { Upload as UploadIcon, Hourglass, FileText, Music as MusicIcon, Image as ImgIcon } from "lucide-react";
-import { CATEGORIES as CATS } from "@/lib/categories";
+import { Upload as UploadIcon, Hourglass, FileText, Music as MusicIcon, Image as ImgIcon, Plus, AlertCircle, Eye, Pencil } from "lucide-react";
 
 export const Route = createFileRoute("/upload")({
   component: UploadPage,
 });
 
-const MAX_PDF = 25 * 1024 * 1024; // 25 MB
-const MAX_AUDIO = 30 * 1024 * 1024; // 30 MB
-const MAX_IMAGE = 8 * 1024 * 1024; // 8 MB
+const MAX_PDF = 25 * 1024 * 1024;
+const MAX_AUDIO = 30 * 1024 * 1024;
+const MAX_IMAGE = 8 * 1024 * 1024;
 const MAX_IMAGES = 10;
 const ALLOWED_IMAGE = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 const ALLOWED_AUDIO = ["audio/mpeg", "audio/mp3"];
 
-// Normalize spaces: trim + collapse internal whitespace
 const normalizeSpaces = (s: string) => s.replace(/\s+/g, " ").trim();
-// Author must contain at least one letter (unicode), allows letters, spaces, . ' - and digits but not only digits/symbols
 const AUTHOR_VALID_RE = /^[\p{L}][\p{L}\p{M}\s.'\-]*[\p{L}.]?$/u;
 
 const metaSchema = z.object({
@@ -51,31 +50,69 @@ function safeName(name: string) {
   return name.replace(/[^\w.\-]+/g, "_").slice(0, 120);
 }
 
+function slugify(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 50);
+}
+
+function fmtSize(b: number) {
+  return b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function validatePdf(file: File): string | null {
+  if (file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) return "O ficheiro deve ser um PDF.";
+  if (file.size > MAX_PDF) return `PDF excede ${(MAX_PDF / 1024 / 1024).toFixed(0)} MB.`;
+  return null;
+}
+function validateAudio(file: File): string | null {
+  if (!ALLOWED_AUDIO.includes(file.type) && !file.name.toLowerCase().endsWith(".mp3")) return "Áudio deve ser MP3.";
+  if (file.size > MAX_AUDIO) return `Áudio excede ${(MAX_AUDIO / 1024 / 1024).toFixed(0)} MB.`;
+  return null;
+}
+function validateImage(file: File): string | null {
+  if (!ALLOWED_IMAGE.includes(file.type)) return `'${file.name}': formato não suportado (use JPG, PNG, WEBP ou GIF).`;
+  if (file.size > MAX_IMAGE) return `'${file.name}' excede ${(MAX_IMAGE / 1024 / 1024).toFixed(0)} MB.`;
+  return null;
+}
+
+type Submission = { id: string; title: string; status: string; created_at: string; rejection_reason: string | null };
+
 function UploadPage() {
   const { user, canUpload, uploadStatus, loading, refresh, isAdmin } = useAuth();
   const navigate = useNavigate();
+  const { categories } = useCategories();
 
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<CategoryValue | "">("");
+  const [category, setCategory] = useState<string>("");
   const [pdf, setPdf] = useState<File | null>(null);
   const [audio, setAudio] = useState<File | null>(null);
   const [images, setImages] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [authorSuggestions, setAuthorSuggestions] = useState<string[]>([]);
   const [showAuthorList, setShowAuthorList] = useState(false);
-  const [mySubmissions, setMySubmissions] = useState<Array<{ id: string; title: string; status: string; created_at: string }>>([]);
+  const [mySubmissions, setMySubmissions] = useState<Submission[]>([]);
+
+  // New category dialog (admin only)
+  const [newCatOpen, setNewCatOpen] = useState(false);
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [newCatBusy, setNewCatBusy] = useState(false);
 
   const loadMySubmissions = async () => {
     if (!user) return;
     const { data } = await supabase
       .from("tracks")
-      .select("id,title,status,created_at")
+      .select("id,title,status,created_at,rejection_reason")
       .eq("uploaded_by", user.id)
       .order("created_at", { ascending: false })
       .limit(20);
-    setMySubmissions((data ?? []) as any);
+    setMySubmissions((data ?? []) as Submission[]);
   };
 
   useEffect(() => {
@@ -83,7 +120,6 @@ function UploadPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canUpload, user?.id]);
 
-  // Load existing distinct authors for autocomplete
   useEffect(() => {
     supabase
       .from("tracks")
@@ -105,7 +141,6 @@ function UploadPage() {
     return authorSuggestions.filter((a) => a.toLowerCase().includes(q)).slice(0, 8);
   }, [author, authorSuggestions]);
 
-  // Preview URLs for selected files
   const pdfPreview = useMemo(() => (pdf ? URL.createObjectURL(pdf) : null), [pdf]);
   const audioPreview = useMemo(() => (audio ? URL.createObjectURL(audio) : null), [audio]);
   const imagePreviews = useMemo(() => images.map((f) => ({ name: f.name, url: URL.createObjectURL(f) })), [images]);
@@ -113,9 +148,30 @@ function UploadPage() {
   useEffect(() => () => { if (audioPreview) URL.revokeObjectURL(audioPreview); }, [audioPreview]);
   useEffect(() => () => { imagePreviews.forEach((p) => URL.revokeObjectURL(p.url)); }, [imagePreviews]);
 
-  const categoryLabelFor = (v: string) => CATS.find((c) => c.value === v)?.label ?? "—";
-  const fmtSize = (b: number) => b < 1024 * 1024 ? `${(b / 1024).toFixed(0)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`;
   const hasAnyPreview = title || author || category || pdf || audio || images.length > 0;
+
+  // File handlers with immediate validation
+  const onPickPdf = (f: File | null) => {
+    if (!f) { setPdf(null); return; }
+    const err = validatePdf(f);
+    if (err) { toast.error(err); return; }
+    setPdf(f);
+  };
+  const onPickAudio = (f: File | null) => {
+    if (!f) { setAudio(null); return; }
+    const err = validateAudio(f);
+    if (err) { toast.error(err); return; }
+    setAudio(f);
+  };
+  const onPickImages = (files: File[]) => {
+    if (files.length === 0) { setImages([]); return; }
+    if (files.length > MAX_IMAGES) { toast.error(`Máximo ${MAX_IMAGES} imagens.`); return; }
+    for (const img of files) {
+      const err = validateImage(img);
+      if (err) { toast.error(err); return; }
+    }
+    setImages(files);
+  };
 
   if (loading) return <div className="min-h-screen bg-background"><Header /><p className="container mx-auto p-8 text-muted-foreground">A carregar...</p></div>;
 
@@ -178,44 +234,22 @@ function UploadPage() {
     );
   }
 
-  const validateFiles = (): string | null => {
-    if (!pdf) return "PDF é obrigatório.";
-    if (pdf.type !== "application/pdf" && !pdf.name.toLowerCase().endsWith(".pdf")) return "O ficheiro principal deve ser um PDF.";
-    if (pdf.size > MAX_PDF) return "PDF excede 25 MB.";
-    if (audio) {
-      if (!ALLOWED_AUDIO.includes(audio.type) && !audio.name.toLowerCase().endsWith(".mp3")) return "Áudio deve ser MP3.";
-      if (audio.size > MAX_AUDIO) return "Áudio excede 30 MB.";
-    }
-    if (images.length > MAX_IMAGES) return `Máximo ${MAX_IMAGES} imagens.`;
-    for (const img of images) {
-      if (!ALLOWED_IMAGE.includes(img.type)) return `Imagem '${img.name}': formato não suportado.`;
-      if (img.size > MAX_IMAGE) return `Imagem '${img.name}' excede 8 MB.`;
-    }
-    return null;
-  };
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanedTitle = normalizeSpaces(title);
     const cleanedAuthor = normalizeSpaces(author);
     const cleanedDescription = description.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
-    const meta = metaSchema.safeParse({
-      title: cleanedTitle,
-      author: cleanedAuthor,
-      description: cleanedDescription,
-      category,
-    });
+    const meta = metaSchema.safeParse({ title: cleanedTitle, author: cleanedAuthor, description: cleanedDescription, category });
     if (!meta.success) return toast.error(meta.error.issues[0].message);
-    const fileErr = validateFiles();
-    if (fileErr) return toast.error(fileErr);
+    if (!pdf) return toast.error("PDF é obrigatório.");
 
     setSubmitting(true);
     try {
       const stamp = Date.now();
       const baseDir = `${user.id}/${stamp}`;
 
-      const pdfPath = `${baseDir}/${safeName(pdf!.name)}`;
-      const { error: pdfErr } = await supabase.storage.from("pdfs").upload(pdfPath, pdf!, { upsert: false, contentType: "application/pdf" });
+      const pdfPath = `${baseDir}/${safeName(pdf.name)}`;
+      const { error: pdfErr } = await supabase.storage.from("pdfs").upload(pdfPath, pdf, { upsert: false, contentType: "application/pdf" });
       if (pdfErr) throw pdfErr;
 
       let audioPath: string | null = null;
@@ -237,7 +271,7 @@ function UploadPage() {
         title: meta.data.title,
         author: meta.data.author || null,
         description: meta.data.description || null,
-        category: meta.data.category as CategoryValue,
+        category: meta.data.category,
         pdf_path: pdfPath,
         audio_path: audioPath,
         image_paths: imagePaths,
@@ -251,7 +285,6 @@ function UploadPage() {
         navigate({ to: "/library" });
       } else {
         toast.success("Conteúdo enviado para aprovação do administrador.");
-        // Reset form so user can see "Os meus envios"
         setTitle(""); setAuthor(""); setDescription(""); setCategory("");
         setPdf(null); setAudio(null); setImages([]);
         loadMySubmissions();
@@ -261,6 +294,27 @@ function UploadPage() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const createCategory = async () => {
+    const label = newCatLabel.trim();
+    if (label.length < 2) return toast.error("Nome de categoria muito curto.");
+    if (label.length > 60) return toast.error("Nome de categoria muito longo.");
+    let value = slugify(label);
+    if (!value) return toast.error("Nome inválido.");
+    setNewCatBusy(true);
+    // Ensure uniqueness
+    if (categories.some((c) => c.value === value)) {
+      value = `${value}-${Date.now().toString(36).slice(-4)}`;
+    }
+    const { error } = await supabase.from("categories").insert({ value, label });
+    setNewCatBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria criada!");
+    await fetchCategories(true);
+    setCategory(value);
+    setNewCatLabel("");
+    setNewCatOpen(false);
   };
 
   return (
@@ -275,6 +329,7 @@ function UploadPage() {
                 <Label className="font-semibold text-foreground">Título *</Label>
                 <Input required value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
               </div>
+
               <div className="relative">
                 <Label className="font-semibold text-foreground">Autor do hino</Label>
                 <Input
@@ -304,32 +359,52 @@ function UploadPage() {
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">Sugestões com base em autores já cadastrados.</p>
               </div>
+
               <div>
                 <Label className="font-semibold text-foreground">Descrição</Label>
                 <Textarea value={description} onChange={(e) => setDescription(e.target.value)} maxLength={1000} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
               </div>
+
               <div>
-                <Label className="font-semibold text-foreground">Categoria *</Label>
-                <Select value={category} onValueChange={(v) => setCategory(v as CategoryValue)}>
-                  <SelectTrigger className="border-2 border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/30 bg-background"><SelectValue placeholder="Escolha uma categoria" /></SelectTrigger>
+                <div className="flex items-center justify-between gap-2">
+                  <Label className="font-semibold text-foreground">Categoria *</Label>
+                  {isAdmin && (
+                    <Button type="button" size="sm" variant="outline" onClick={() => setNewCatOpen(true)}>
+                      <Plus className="h-4 w-4 mr-1" /> Nova categoria
+                    </Button>
+                  )}
+                </div>
+                <Select value={category} onValueChange={(v) => setCategory(v)}>
+                  <SelectTrigger className="border-2 border-primary/30 focus:border-primary focus:ring-2 focus:ring-primary/30 bg-background">
+                    <SelectValue placeholder="Escolha uma categoria" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {CATEGORIES.map((c) => (
+                    {categories.map((c) => (
                       <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {!isAdmin && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Não encontra a categoria? Solicite ao administrador através da{" "}
+                    <Link to="/contact" className="underline text-primary">página de contacto</Link>.
+                  </p>
+                )}
               </div>
+
               <div>
                 <Label className="font-semibold text-foreground">PDF * <span className="text-xs text-muted-foreground font-normal">(máx. 25 MB)</span></Label>
-                <Input type="file" accept="application/pdf" required onChange={(e) => setPdf(e.target.files?.[0] ?? null)} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
+                <Input type="file" accept="application/pdf" required onChange={(e) => onPickPdf(e.target.files?.[0] ?? null)} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
               </div>
+
               <div>
                 <Label className="font-semibold text-foreground">Áudio (MP3) — opcional <span className="text-xs text-muted-foreground font-normal">(máx. 30 MB)</span></Label>
-                <Input type="file" accept="audio/mpeg,audio/mp3" onChange={(e) => setAudio(e.target.files?.[0] ?? null)} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
+                <Input type="file" accept="audio/mpeg,audio/mp3,.mp3" onChange={(e) => onPickAudio(e.target.files?.[0] ?? null)} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
               </div>
+
               <div>
                 <Label className="font-semibold text-foreground">Imagens — opcional <span className="text-xs text-muted-foreground font-normal">(máx. 10 ficheiros, 8 MB cada — JPG/PNG/WEBP/GIF)</span></Label>
-                <Input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(e) => setImages(Array.from(e.target.files ?? []))} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
+                <Input type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple onChange={(e) => onPickImages(Array.from(e.target.files ?? []))} className="border-2 border-primary/30 focus-visible:border-primary focus-visible:ring-2 focus-visible:ring-primary/30 bg-background" />
                 {images.length > 0 && <p className="mt-1 text-xs text-muted-foreground">{images.length} ficheiro(s) selecionado(s)</p>}
               </div>
 
@@ -346,7 +421,7 @@ function UploadPage() {
                     </div>
                     <div className="rounded-lg bg-background p-3 border border-border/60">
                       <p className="text-xs text-muted-foreground">Categoria</p>
-                      <p className="font-medium">{category ? categoryLabelFor(category) : <span className="text-muted-foreground italic">— em falta</span>}</p>
+                      <p className="font-medium">{category ? categoryLabel(category) : <span className="text-muted-foreground italic">— em falta</span>}</p>
                     </div>
                     {author && (
                       <div className="rounded-lg bg-background p-3 border border-border/60 sm:col-span-2">
@@ -406,17 +481,40 @@ function UploadPage() {
               <p className="text-sm text-muted-foreground">Ainda não enviou nenhum conteúdo.</p>
             ) : (
               mySubmissions.map((s) => (
-                <div key={s.id} className="flex items-center justify-between gap-3 rounded-lg border border-border/60 p-3">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate">{s.title}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString("pt-PT")}</p>
+                <div key={s.id} className="rounded-lg border border-border/60 p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-3 flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium truncate">{s.title}</p>
+                      <p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString("pt-PT")}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {s.status === "approved" ? (
+                        <Badge>Aprovado</Badge>
+                      ) : s.status === "rejected" ? (
+                        <Badge variant="destructive">Rejeitado</Badge>
+                      ) : (
+                        <Badge variant="secondary">Pendente</Badge>
+                      )}
+                      <Button asChild size="sm" variant="outline">
+                        <Link to="/track/$id" params={{ id: s.id }}>
+                          <Eye className="h-3.5 w-3.5 mr-1" />Ver
+                        </Link>
+                      </Button>
+                      <Button asChild size="sm" variant="outline">
+                        <Link to="/track/$id/edit" params={{ id: s.id }}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" />Editar
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
-                  {s.status === "approved" ? (
-                    <Badge>Aprovado</Badge>
-                  ) : s.status === "rejected" ? (
-                    <Badge variant="destructive">Rejeitado</Badge>
-                  ) : (
-                    <Badge variant="secondary">Pendente</Badge>
+                  {s.status === "rejected" && (
+                    <div className="rounded-md bg-destructive/10 border border-destructive/30 p-2 text-xs flex gap-2">
+                      <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                      <div>
+                        <p className="font-medium text-destructive">Motivo da rejeição</p>
+                        <p className="text-foreground/80 mt-0.5">{s.rejection_reason || "O administrador não deixou nenhuma mensagem."}</p>
+                      </div>
+                    </div>
                   )}
                 </div>
               ))
@@ -424,6 +522,29 @@ function UploadPage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={newCatOpen} onOpenChange={setNewCatOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nova categoria</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Nome da categoria</Label>
+            <Input
+              value={newCatLabel}
+              onChange={(e) => setNewCatLabel(e.target.value)}
+              placeholder="Ex.: Hinos de Natal"
+              maxLength={60}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">Apenas administradores podem criar categorias.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setNewCatOpen(false)}>Cancelar</Button>
+            <Button onClick={createCategory} disabled={newCatBusy}>{newCatBusy ? "A criar..." : "Criar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

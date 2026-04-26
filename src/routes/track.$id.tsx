@@ -4,14 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Header } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { categoryLabel } from "@/lib/categories";
-import { ArrowLeft, Trash2, Download, FileDown, ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { categoryLabel, fetchCategories } from "@/lib/categories";
+import { ArrowLeft, Trash2, FileDown, Pencil, AlertCircle, Hourglass, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
-import { categoryLabel as catLabel } from "@/lib/categories";
+import { MediaViewer } from "@/components/app/MediaViewer";
 
 export const Route = createFileRoute("/track/$id")({
   component: TrackPage,
@@ -27,7 +25,9 @@ type Track = {
   audio_path: string | null;
   image_paths: string[];
   uploaded_by: string | null;
-  status?: string;
+  status: string;
+  allow_download: boolean;
+  rejection_reason: string | null;
 };
 
 function TrackPage() {
@@ -36,9 +36,9 @@ function TrackPage() {
   const navigate = useNavigate();
   const [track, setTrack] = useState<Track | null>(null);
   const [loading, setLoading] = useState(true);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
+    fetchCategories();
     supabase.from("tracks").select("*").eq("id", id).maybeSingle().then(({ data }) => {
       setTrack(data as Track | null);
       setLoading(false);
@@ -49,70 +49,48 @@ function TrackPage() {
   if (!track) return <div className="min-h-screen bg-background"><Header /><p className="container mx-auto p-8">Não encontrado.</p></div>;
 
   const isOwner = !!user && user.id === track.uploaded_by;
-  if (track.status && track.status !== "approved" && !isAdmin && !isOwner) {
+  if (track.status !== "approved" && !isAdmin && !isOwner) {
     return <div className="min-h-screen bg-background"><Header /><p className="container mx-auto p-8">Conteúdo indisponível.</p></div>;
   }
 
-  const statusBanner = track.status && track.status !== "approved" ? (
-    <div className={`mb-6 rounded-lg border p-3 text-sm ${track.status === "rejected" ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/40 bg-primary/5"}`}>
-      {track.status === "pending"
-        ? "Este conteúdo está aguardando aprovação do administrador. Apenas você e o administrador podem vê-lo."
-        : "Este conteúdo foi rejeitado pelo administrador e não está visível na biblioteca."}
-    </div>
-  ) : null;
-
-  const pdfUrl = supabase.storage.from("pdfs").getPublicUrl(track.pdf_path).data.publicUrl;
-  const pdfViewerUrl = `${pdfUrl}#toolbar=1&view=FitH`;
-  const audioUrl = track.audio_path ? supabase.storage.from("audios").getPublicUrl(track.audio_path).data.publicUrl : null;
-  const imageUrls = track.image_paths.map((p) => supabase.storage.from("images").getPublicUrl(p).data.publicUrl);
-  const closeLightbox = () => setLightboxIndex(null);
-  const prevImage = () => setLightboxIndex((i) => (i === null ? null : (i - 1 + imageUrls.length) % imageUrls.length));
-  const nextImage = () => setLightboxIndex((i) => (i === null ? null : (i + 1) % imageUrls.length));
-
-  const canDelete = isAdmin || (user && user.id === track.uploaded_by);
+  const canEdit = isAdmin || isOwner;
+  const canDelete = canEdit;
 
   const onDelete = async () => {
-    if (!confirm("Eliminar este conteúdo?")) return;
+    if (!confirm("Eliminar este conteúdo? Esta ação não pode ser desfeita.")) return;
     const { error } = await supabase.from("tracks").delete().eq("id", track.id);
     if (error) return toast.error(error.message);
     toast.success("Eliminado.");
-    navigate({ to: "/" });
+    navigate({ to: "/library" });
   };
 
   const exportDetailsPdf = () => {
-    if (!track) return;
     const doc = new jsPDF({ unit: "pt", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const margin = 48;
     let y = margin;
-
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(120);
     doc.text("FLAUKI — Biblioteca Musical", margin, y);
     y += 22;
-
     doc.setFontSize(20);
     doc.setTextColor(20);
     const titleLines = doc.splitTextToSize(track.title, pageW - margin * 2);
     doc.text(titleLines, margin, y);
     y += titleLines.length * 24 + 6;
-
     if (track.author) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(20);
-      doc.setTextColor(20);
-      const authorLines = doc.splitTextToSize(track.author, pageW - margin * 2);
+      const authorLines = doc.splitTextToSize(`Arranjado pelo: ${track.author}`, pageW - margin * 2);
+      doc.setFontSize(12);
+      doc.setTextColor(80);
       doc.text(authorLines, margin, y);
-      y += authorLines.length * 24 + 6;
+      y += authorLines.length * 16 + 6;
     }
-
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(80);
-    doc.text(`Categoria: ${catLabel(track.category)}`, margin, y);
+    doc.text(`Categoria: ${categoryLabel(track.category)}`, margin, y);
     y += 18;
-
     if (track.description) {
       doc.setTextColor(40);
       doc.text("Descrição", margin, y); y += 16;
@@ -121,52 +99,63 @@ function TrackPage() {
       doc.text(desc, margin, y);
       y += desc.length * 14 + 10;
     }
-
-    doc.setTextColor(40);
-    doc.setFont("helvetica", "bold");
-    doc.text("Anexos", margin, y); y += 18;
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(80);
-
-    const fileName = (p: string) => p.split("/").pop() ?? p;
-    const items: string[] = [];
-    items.push(`• PDF: ${fileName(track.pdf_path)}`);
-    if (track.audio_path) items.push(`• Áudio (MP3): ${fileName(track.audio_path)}`);
-    if (track.image_paths.length > 0) {
-      items.push(`• Imagens (${track.image_paths.length}):`);
-      track.image_paths.forEach((p) => items.push(`    – ${fileName(p)}`));
-    }
-    items.forEach((line) => {
-      const wrapped = doc.splitTextToSize(line, pageW - margin * 2);
-      doc.text(wrapped, margin, y);
-      y += wrapped.length * 14;
-      if (y > 780) { doc.addPage(); y = margin; }
-    });
-
-    y += 20;
-    doc.setFontSize(9);
-    doc.setTextColor(140);
-    const captionParts = [track.title];
-    if (track.author) captionParts.push(track.author);
-    doc.text(`${captionParts.join(" — ")} · Gerado em ${new Date().toLocaleString("pt-PT")} · flauki`, margin, y);
-
     const safe = track.title.replace(/[^\w\-]+/g, "_").slice(0, 60) || "conteudo";
     doc.save(`flauki_${safe}.pdf`);
   };
+
+  const statusBanner = (() => {
+    if (track.status === "approved") return null;
+    if (track.status === "pending") {
+      return (
+        <div className="mb-6 rounded-lg border border-primary/40 bg-primary/5 p-4 flex gap-3">
+          <Hourglass className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-foreground">Aguardando aprovação</p>
+            <p className="text-muted-foreground mt-1">O administrador irá rever este envio em breve. Apenas você e o administrador podem vê-lo enquanto aguarda.</p>
+          </div>
+        </div>
+      );
+    }
+    if (track.status === "rejected") {
+      return (
+        <div className="mb-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex gap-3">
+          <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium text-destructive">Envio rejeitado</p>
+            {track.rejection_reason ? (
+              <p className="text-foreground/80 mt-1"><span className="font-medium">Motivo:</span> {track.rejection_reason}</p>
+            ) : (
+              <p className="text-muted-foreground mt-1">O administrador rejeitou este envio. Pode editar o conteúdo e voltar a submeter.</p>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return null;
+  })();
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
       <div className="container mx-auto px-4 py-8">
         {statusBanner}
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="ghost" asChild><Link to="/"><ArrowLeft className="h-4 w-4 mr-2" />Voltar</Link></Button>
-          <div className="flex gap-2">
+        <div className="flex items-center justify-between mb-6 gap-2 flex-wrap">
+          <Button variant="ghost" asChild><Link to="/library"><ArrowLeft className="h-4 w-4 mr-2" />Biblioteca</Link></Button>
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={exportDetailsPdf}>
               <FileDown className="h-4 w-4 mr-2" />Exportar detalhes
             </Button>
+            {canEdit && (
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/track/$id/edit" params={{ id: track.id }}>
+                  <Pencil className="h-4 w-4 mr-2" />Editar
+                </Link>
+              </Button>
+            )}
             {canDelete && (
-              <Button variant="destructive" size="sm" onClick={onDelete}><Trash2 className="h-4 w-4 mr-2" />Eliminar</Button>
+              <Button variant="destructive" size="sm" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />Eliminar
+              </Button>
             )}
           </div>
         </div>
@@ -182,101 +171,21 @@ function TrackPage() {
               </Link>
             </p>
           )}
-          {track.description && <p className="mt-2 text-muted-foreground">{track.description}</p>}
+          {track.status === "approved" && isOwner && (
+            <Badge variant="secondary" className="mt-2 gap-1">
+              <CheckCircle2 className="h-3 w-3" /> Publicado
+            </Badge>
+          )}
+          {track.description && <p className="mt-3 text-muted-foreground whitespace-pre-wrap">{track.description}</p>}
         </div>
 
-        {audioUrl && (
-          <Card className="mb-6">
-            <CardContent className="p-4">
-              <audio
-                controls
-                preload="metadata"
-                controlsList="nodownload"
-                className="w-full"
-                src={audioUrl}
-              />
-            </CardContent>
-          </Card>
-        )}
-
-        <Card className="mb-6 overflow-hidden">
-          <div className="flex items-center justify-between bg-muted/50 px-4 py-2 border-b border-border">
-            <span className="text-sm font-medium">Partitura (PDF)</span>
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" asChild>
-                <a href={pdfViewerUrl} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4 mr-2" />Abrir</a>
-              </Button>
-              <Button size="sm" variant="outline" asChild>
-                <a href={pdfUrl} target="_blank" rel="noreferrer" download><Download className="h-4 w-4 mr-2" />Descarregar</a>
-              </Button>
-            </div>
-          </div>
-          <object data={pdfViewerUrl} type="application/pdf" className="w-full h-[80vh] bg-background">
-            <iframe src={pdfViewerUrl} className="w-full h-[80vh] bg-background" title={track.title} />
-            <div className="p-6 text-center text-sm text-muted-foreground">
-              O seu navegador não suporta visualização de PDF integrada.{" "}
-              <a className="underline text-primary" href={pdfViewerUrl} target="_blank" rel="noreferrer">Abrir o PDF numa nova aba</a>.
-            </div>
-          </object>
-        </Card>
-
-        {track.image_paths.length > 0 && (
-          <div>
-            <h2 className="text-xl font-semibold mb-3">Imagens</h2>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {imageUrls.map((url, idx) => (
-                <button
-                  key={url}
-                  type="button"
-                  onClick={() => setLightboxIndex(idx)}
-                  className="group relative overflow-hidden rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary"
-                  aria-label={`Abrir imagem ${idx + 1}`}
-                >
-                  <img src={url} alt={`Imagem ${idx + 1}`} className="w-full aspect-square object-cover transition group-hover:scale-105" loading="lazy" />
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <Dialog open={lightboxIndex !== null} onOpenChange={(o) => !o && closeLightbox()}>
-          <DialogContent className="max-w-5xl p-0 bg-background/95 border-border">
-            {lightboxIndex !== null && (
-              <div className="relative">
-                <img
-                  src={imageUrls[lightboxIndex]}
-                  alt={`Imagem ${lightboxIndex + 1}`}
-                  className="w-full max-h-[85vh] object-contain bg-black"
-                />
-                {imageUrls.length > 1 && (
-                  <>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full"
-                      onClick={prevImage}
-                      aria-label="Imagem anterior"
-                    >
-                      <ChevronLeft className="h-5 w-5" />
-                    </Button>
-                    <Button
-                      variant="secondary"
-                      size="icon"
-                      className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full"
-                      onClick={nextImage}
-                      aria-label="Imagem seguinte"
-                    >
-                      <ChevronRight className="h-5 w-5" />
-                    </Button>
-                  </>
-                )}
-                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-background/80 px-3 py-1 text-xs text-foreground border border-border">
-                  {lightboxIndex + 1} / {imageUrls.length}
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        <MediaViewer
+          pdfPath={track.pdf_path}
+          audioPath={track.audio_path}
+          imagePaths={track.image_paths}
+          title={track.title}
+          allowDownload={track.allow_download}
+        />
       </div>
     </div>
   );

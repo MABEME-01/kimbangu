@@ -17,6 +17,7 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TrackIdRouteImport } from './routes/track.$id'
 import { Route as AuthorNameRouteImport } from './routes/author.$name'
+import { Route as TrackIdEditRouteImport } from './routes/track.$id.edit'
 
 const UploadRoute = UploadRouteImport.update({
   id: '/upload',
@@ -58,6 +59,11 @@ const AuthorNameRoute = AuthorNameRouteImport.update({
   path: '/author/$name',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TrackIdEditRoute = TrackIdEditRouteImport.update({
+  id: '/edit',
+  path: '/edit',
+  getParentRoute: () => TrackIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -67,7 +73,8 @@ export interface FileRoutesByFullPath {
   '/library': typeof LibraryRoute
   '/upload': typeof UploadRoute
   '/author/$name': typeof AuthorNameRoute
-  '/track/$id': typeof TrackIdRoute
+  '/track/$id': typeof TrackIdRouteWithChildren
+  '/track/$id/edit': typeof TrackIdEditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -77,7 +84,8 @@ export interface FileRoutesByTo {
   '/library': typeof LibraryRoute
   '/upload': typeof UploadRoute
   '/author/$name': typeof AuthorNameRoute
-  '/track/$id': typeof TrackIdRoute
+  '/track/$id': typeof TrackIdRouteWithChildren
+  '/track/$id/edit': typeof TrackIdEditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -88,7 +96,8 @@ export interface FileRoutesById {
   '/library': typeof LibraryRoute
   '/upload': typeof UploadRoute
   '/author/$name': typeof AuthorNameRoute
-  '/track/$id': typeof TrackIdRoute
+  '/track/$id': typeof TrackIdRouteWithChildren
+  '/track/$id/edit': typeof TrackIdEditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/upload'
     | '/author/$name'
     | '/track/$id'
+    | '/track/$id/edit'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/upload'
     | '/author/$name'
     | '/track/$id'
+    | '/track/$id/edit'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/upload'
     | '/author/$name'
     | '/track/$id'
+    | '/track/$id/edit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,7 +143,7 @@ export interface RootRouteChildren {
   LibraryRoute: typeof LibraryRoute
   UploadRoute: typeof UploadRoute
   AuthorNameRoute: typeof AuthorNameRoute
-  TrackIdRoute: typeof TrackIdRoute
+  TrackIdRoute: typeof TrackIdRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
@@ -192,8 +204,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthorNameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/track/$id/edit': {
+      id: '/track/$id/edit'
+      path: '/edit'
+      fullPath: '/track/$id/edit'
+      preLoaderRoute: typeof TrackIdEditRouteImport
+      parentRoute: typeof TrackIdRoute
+    }
   }
 }
+
+interface TrackIdRouteChildren {
+  TrackIdEditRoute: typeof TrackIdEditRoute
+}
+
+const TrackIdRouteChildren: TrackIdRouteChildren = {
+  TrackIdEditRoute: TrackIdEditRoute,
+}
+
+const TrackIdRouteWithChildren =
+  TrackIdRoute._addFileChildren(TrackIdRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -203,7 +233,7 @@ const rootRouteChildren: RootRouteChildren = {
   LibraryRoute: LibraryRoute,
   UploadRoute: UploadRoute,
   AuthorNameRoute: AuthorNameRoute,
-  TrackIdRoute: TrackIdRoute,
+  TrackIdRoute: TrackIdRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

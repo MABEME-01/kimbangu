@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          value?: string
+        }
+        Relationships: []
+      }
       contact_messages: {
         Row: {
           created_at: string
@@ -70,45 +91,59 @@ export type Database = {
       }
       tracks: {
         Row: {
+          allow_download: boolean
           audio_path: string | null
           author: string | null
-          category: Database["public"]["Enums"]["music_category"]
+          category: string
           created_at: string
           description: string | null
           id: string
           image_paths: string[]
           pdf_path: string
+          rejection_reason: string | null
           status: string
           title: string
           uploaded_by: string | null
         }
         Insert: {
+          allow_download?: boolean
           audio_path?: string | null
           author?: string | null
-          category: Database["public"]["Enums"]["music_category"]
+          category: string
           created_at?: string
           description?: string | null
           id?: string
           image_paths?: string[]
           pdf_path: string
+          rejection_reason?: string | null
           status?: string
           title: string
           uploaded_by?: string | null
         }
         Update: {
+          allow_download?: boolean
           audio_path?: string | null
           author?: string | null
-          category?: Database["public"]["Enums"]["music_category"]
+          category?: string
           created_at?: string
           description?: string | null
           id?: string
           image_paths?: string[]
           pdf_path?: string
+          rejection_reason?: string | null
           status?: string
           title?: string
           uploaded_by?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tracks_category_fkey"
+            columns: ["category"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["value"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -143,16 +178,6 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "uploader" | "user"
-      music_category:
-        | "alegria"
-        | "adoracao"
-        | "louvor"
-        | "suplicas"
-        | "morte"
-        | "casamento"
-        | "alertas"
-        | "generativas"
-        | "reflexao"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -281,17 +306,6 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "uploader", "user"],
-      music_category: [
-        "alegria",
-        "adoracao",
-        "louvor",
-        "suplicas",
-        "morte",
-        "casamento",
-        "alertas",
-        "generativas",
-        "reflexao",
-      ],
     },
   },
 } as const
