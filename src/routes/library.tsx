@@ -248,10 +248,11 @@ function LibraryPage() {
                       <h3 className="font-semibold text-lg leading-tight group-hover:text-primary transition">{t.title}</h3>
                       {t.author && <p className="mt-0.5 text-xs text-muted-foreground">por {t.author}</p>}
                       {t.description && <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{t.description}</p>}
-                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         <span className="inline-flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> PDF</span>
                         {t.audio_path && <span className="inline-flex items-center gap-1"><Music className="h-3.5 w-3.5" /> Áudio</span>}
                         {t.image_paths.length > 0 && <span className="inline-flex items-center gap-1"><ImgIcon className="h-3.5 w-3.5" /> {t.image_paths.length}</span>}
+                        <span className="inline-flex items-center gap-1 ml-auto"><Eye className="h-3.5 w-3.5" /> {t.view_count}</span>
                       </div>
                     </CardContent>
                   </Card>
