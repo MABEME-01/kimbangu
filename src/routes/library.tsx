@@ -36,6 +36,9 @@ type Track = {
   audio_path: string | null;
   image_paths: string[];
   created_at: string;
+  view_count: number;
+  download_count: number;
+  play_count: number;
 };
 
 function CoverImage({ path, alt }: { path: string; alt: string }) {
