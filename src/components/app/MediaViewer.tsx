@@ -91,7 +91,7 @@ export function MediaViewer({ pdfPath, audioPath, imagePaths, title, allowDownlo
             )}
             {allowDownload && pdfUrl && (
               <Button size="sm" variant="outline" asChild>
-                <a href={pdfUrl} target="_blank" rel="noreferrer" download>
+                <a href={pdfUrl} target="_blank" rel="noreferrer" download onClick={onDownload}>
                   <Download className="h-4 w-4 mr-2" />Descarregar
                 </a>
               </Button>
