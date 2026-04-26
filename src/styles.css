@@ -1,0 +1,155 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Design system definition.
+ *
+ * The @theme inline block maps CSS custom properties to Tailwind utility
+ * classes (e.g. --color-primary -> bg-primary, text-primary).
+ *
+ * The :root and .dark blocks define the actual color values using oklch.
+ * All colors MUST use oklch format.
+ *
+ * To add a new semantic color:
+ * 1. Add the variable to :root (light value) and .dark (dark value)
+ * 2. Register it in @theme inline as --color-<name>: var(--<name>)
+ */
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset-background: var(--background);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root {
+  --radius: 0.625rem;
+  /* FLAUKI — espiritual, azul-esverdeado (teal/cyan) */
+  --background: oklch(0.985 0.008 200);
+  --foreground: oklch(0.22 0.04 210);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.04 210);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.04 210);
+  --primary: oklch(0.55 0.11 195);
+  --primary-foreground: oklch(0.99 0.005 200);
+  --primary-glow: oklch(0.7 0.13 190);
+  --secondary: oklch(0.95 0.02 195);
+  --secondary-foreground: oklch(0.3 0.06 210);
+  --muted: oklch(0.95 0.015 200);
+  --muted-foreground: oklch(0.5 0.03 210);
+  --accent: oklch(0.92 0.05 185);
+  --accent-foreground: oklch(0.25 0.06 210);
+  --destructive: oklch(0.6 0.22 25);
+  --destructive-foreground: oklch(0.99 0.003 0);
+  --border: oklch(0.9 0.02 200);
+  --input: oklch(0.92 0.02 200);
+  --ring: oklch(0.6 0.1 195);
+  --gradient-primary: linear-gradient(135deg, oklch(0.55 0.11 195), oklch(0.7 0.13 175));
+  --gradient-hero: linear-gradient(160deg, oklch(0.45 0.08 210) 0%, oklch(0.55 0.11 195) 50%, oklch(0.7 0.13 175) 100%);
+  --shadow-elegant: 0 10px 30px -10px oklch(0.55 0.11 195 / 0.3);
+  --shadow-glow: 0 0 40px oklch(0.7 0.13 190 / 0.4);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.984 0.003 247.858);
+  --sidebar-foreground: oklch(0.129 0.042 264.695);
+  --sidebar-primary: oklch(0.208 0.042 265.755);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.968 0.007 247.896);
+  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.704 0.04 256.788);
+}
+
+.dark {
+  --background: oklch(0.18 0.03 215);
+  --foreground: oklch(0.96 0.01 200);
+  --card: oklch(0.22 0.035 215);
+  --card-foreground: oklch(0.96 0.01 200);
+  --popover: oklch(0.22 0.035 215);
+  --popover-foreground: oklch(0.96 0.01 200);
+  --primary: oklch(0.7 0.13 185);
+  --primary-foreground: oklch(0.18 0.03 215);
+  --primary-glow: oklch(0.78 0.14 180);
+  --secondary: oklch(0.28 0.04 215);
+  --secondary-foreground: oklch(0.96 0.01 200);
+  --muted: oklch(0.26 0.03 215);
+  --muted-foreground: oklch(0.7 0.02 200);
+  --accent: oklch(0.32 0.06 195);
+  --accent-foreground: oklch(0.96 0.01 200);
+  --destructive: oklch(0.65 0.2 25);
+  --destructive-foreground: oklch(0.99 0.003 0);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.7 0.13 185);
+  --gradient-primary: linear-gradient(135deg, oklch(0.5 0.1 200), oklch(0.7 0.14 180));
+  --gradient-hero: linear-gradient(160deg, oklch(0.22 0.04 220) 0%, oklch(0.32 0.08 200) 50%, oklch(0.45 0.12 180) 100%);
+  --shadow-elegant: 0 10px 30px -10px oklch(0.7 0.13 185 / 0.4);
+  --shadow-glow: 0 0 40px oklch(0.78 0.14 180 / 0.5);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.551 0.027 264.364);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+  }
+}
