@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog";
-import { Search, Music, FileText, Image as ImgIcon, ArrowUpAZ, ChevronLeft, ChevronRight, ListFilter, X, Upload } from "lucide-react";
+import { Search, Music, FileText, Image as ImgIcon, ArrowUpAZ, ChevronLeft, ChevronRight, ListFilter, X, Upload, Eye } from "lucide-react";
 
 type LibrarySearch = { q?: string; cats?: string; sort?: "asc" | "desc"; page?: number };
 
@@ -36,6 +36,9 @@ type Track = {
   audio_path: string | null;
   image_paths: string[];
   created_at: string;
+  view_count: number;
+  download_count: number;
+  play_count: number;
 };
 
 function CoverImage({ path, alt }: { path: string; alt: string }) {
@@ -77,7 +80,7 @@ function LibraryPage() {
   useEffect(() => {
     supabase
       .from("tracks")
-      .select("id,title,author,description,category,pdf_path,audio_path,image_paths,created_at")
+      .select("id,title,author,description,category,pdf_path,audio_path,image_paths,created_at,view_count,download_count,play_count")
       .eq("status", "approved")
       .order("title", { ascending: true })
       .then(({ data }) => {
@@ -245,10 +248,11 @@ function LibraryPage() {
                       <h3 className="font-semibold text-lg leading-tight group-hover:text-primary transition">{t.title}</h3>
                       {t.author && <p className="mt-0.5 text-xs text-muted-foreground">por {t.author}</p>}
                       {t.description && <p className="mt-1 text-sm text-muted-foreground line-clamp-2">{t.description}</p>}
-                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                      <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
                         <span className="inline-flex items-center gap-1"><FileText className="h-3.5 w-3.5" /> PDF</span>
                         {t.audio_path && <span className="inline-flex items-center gap-1"><Music className="h-3.5 w-3.5" /> Áudio</span>}
                         {t.image_paths.length > 0 && <span className="inline-flex items-center gap-1"><ImgIcon className="h-3.5 w-3.5" /> {t.image_paths.length}</span>}
+                        <span className="inline-flex items-center gap-1 ml-auto"><Eye className="h-3.5 w-3.5" /> {t.view_count}</span>
                       </div>
                     </CardContent>
                   </Card>

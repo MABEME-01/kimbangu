@@ -508,11 +508,35 @@ function UploadPage() {
                     </div>
                   </div>
                   {s.status === "rejected" && (
-                    <div className="rounded-md bg-destructive/10 border border-destructive/30 p-2 text-xs flex gap-2">
-                      <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
-                      <div>
-                        <p className="font-medium text-destructive">Motivo da rejeição</p>
-                        <p className="text-foreground/80 mt-0.5">{s.rejection_reason || "O administrador não deixou nenhuma mensagem."}</p>
+                    <div className="rounded-md bg-destructive/10 border border-destructive/30 p-2 text-xs space-y-2">
+                      <div className="flex gap-2">
+                        <AlertCircle className="h-4 w-4 text-destructive shrink-0" />
+                        <div>
+                          <p className="font-medium text-destructive">Motivo da rejeição</p>
+                          <p className="text-foreground/80 mt-0.5">{s.rejection_reason || "O administrador não deixou nenhuma mensagem."}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2 pl-6">
+                        <Button asChild size="sm" variant="outline">
+                          <Link to="/track/$id/edit" params={{ id: s.id }}>
+                            <Pencil className="h-3.5 w-3.5 mr-1" />Corrigir e reenviar
+                          </Link>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={async () => {
+                            const { error } = await supabase
+                              .from("tracks")
+                              .update({ status: "pending", rejection_reason: null })
+                              .eq("id", s.id);
+                            if (error) return toast.error(error.message);
+                            toast.success("Reenviado para revisão.");
+                            loadMySubmissions();
+                          }}
+                        >
+                          Reenviar como está
+                        </Button>
                       </div>
                     </div>
                   )}

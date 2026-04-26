@@ -6,10 +6,14 @@ import { Header } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Check, X, Shield, Mail, Trash2, MailOpen, ArrowUpDown, ChevronLeft, ChevronRight, FileText, Eye, Music as MusicIcon } from "lucide-react";
+import { Check, X, Shield, Mail, Trash2, MailOpen, ArrowUpDown, ChevronLeft, ChevronRight, FileText, Eye, Music as MusicIcon, Tag, Plus, Pencil } from "lucide-react";
 import { getSignedUrl } from "@/lib/storage";
+import { fetchCategories, useCategories } from "@/lib/categories";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
@@ -53,6 +57,14 @@ function AdminPage() {
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   const [previewImageUrls, setPreviewImageUrls] = useState<string[]>([]);
+  // Rejection dialog
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  // Category management
+  const { categories } = useCategories();
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [editCat, setEditCat] = useState<{ value: string; label: string } | null>(null);
+  const [editCatLabel, setEditCatLabel] = useState("");
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
@@ -170,14 +182,76 @@ function AdminPage() {
     load();
   };
 
-  const rejectTrack = async (id: string) => {
-    if (!confirm("Rejeitar este conteúdo? Ficará oculto da biblioteca.")) return;
+  const openRejectDialog = (id: string, title: string) => {
+    setRejectTarget({ id, title });
+    setRejectReason("");
+  };
+
+  const confirmRejectTrack = async () => {
+    if (!rejectTarget) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 3) return toast.error("Indique um motivo (mínimo 3 caracteres).");
+    if (reason.length > 500) return toast.error("Motivo muito longo (máx. 500).");
     setBusy(true);
-    const { error } = await supabase.from("tracks").update({ status: "rejected" }).eq("id", id);
+    const { error } = await supabase
+      .from("tracks")
+      .update({ status: "rejected", rejection_reason: reason })
+      .eq("id", rejectTarget.id);
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success("Conteúdo rejeitado.");
+    toast.success("Conteúdo rejeitado e motivo enviado ao autor.");
+    setRejectTarget(null);
+    setRejectReason("");
+    setPreviewTrack(null);
     load();
+  };
+
+  // Category management
+  const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+
+  const createCategory = async () => {
+    const label = newCatLabel.trim();
+    if (label.length < 2) return toast.error("Nome muito curto.");
+    if (label.length > 60) return toast.error("Nome muito longo.");
+    let value = slug(label);
+    if (!value) return toast.error("Nome inválido.");
+    if (categories.some((c) => c.label.toLowerCase() === label.toLowerCase())) return toast.error("Já existe uma categoria com esse nome.");
+    if (categories.some((c) => c.value === value)) value = `${value}-${Date.now().toString(36).slice(-4)}`;
+    setBusy(true);
+    const { error } = await supabase.from("categories").insert({ value, label });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria criada.");
+    setNewCatLabel("");
+    fetchCategories(true);
+  };
+
+  const renameCategory = async () => {
+    if (!editCat) return;
+    const label = editCatLabel.trim();
+    if (label.length < 2 || label.length > 60) return toast.error("Nome inválido (2-60 caracteres).");
+    if (categories.some((c) => c.value !== editCat.value && c.label.toLowerCase() === label.toLowerCase())) {
+      return toast.error("Já existe outra categoria com esse nome.");
+    }
+    setBusy(true);
+    const { error } = await supabase.from("categories").update({ label }).eq("value", editCat.value);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria renomeada.");
+    setEditCat(null);
+    fetchCategories(true);
+  };
+
+  const deleteCategory = async (value: string, label: string) => {
+    const { count } = await supabase.from("tracks").select("id", { count: "exact", head: true }).eq("category", value);
+    if ((count ?? 0) > 0) return toast.error(`Esta categoria está a ser usada por ${count} hino(s). Reatribua-os antes de eliminar.`);
+    if (!confirm(`Eliminar a categoria "${label}"?`)) return;
+    setBusy(true);
+    const { error } = await supabase.from("categories").delete().eq("value", value);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria eliminada.");
+    fetchCategories(true);
   };
 
   const openPreview = async (t: PendingTrack) => {
@@ -242,7 +316,7 @@ function AdminPage() {
                 <div className="flex gap-2 shrink-0">
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => openPreview(t)}><Eye className="h-4 w-4 mr-1" />Ver</Button>
                   <Button size="sm" disabled={busy} onClick={() => approveTrack(t.id)}><Check className="h-4 w-4 mr-1" />Aprovar</Button>
-                  <Button size="sm" variant="outline" disabled={busy} onClick={() => rejectTrack(t.id)}><X className="h-4 w-4 mr-1" />Rejeitar</Button>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => openRejectDialog(t.id, t.title)}><X className="h-4 w-4 mr-1" />Rejeitar</Button>
                 </div>
               </div>
             ))}
@@ -274,7 +348,7 @@ function AdminPage() {
             <DialogFooter className="gap-2 sm:gap-2">
               {previewTrack && (
                 <>
-                  <Button variant="outline" disabled={busy} onClick={() => { const id = previewTrack.id; setPreviewTrack(null); rejectTrack(id); }}>
+                  <Button variant="outline" disabled={busy} onClick={() => { const id = previewTrack.id; const title = previewTrack.title; setPreviewTrack(null); openRejectDialog(id, title); }}>
                     <X className="h-4 w-4 mr-1" />Rejeitar
                   </Button>
                   <Button disabled={busy} onClick={() => { const id = previewTrack.id; setPreviewTrack(null); approveTrack(id); }}>
@@ -410,6 +484,44 @@ function AdminPage() {
         </Dialog>
 
         <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5" /> Categorias ({categories.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={newCatLabel}
+                onChange={(e) => setNewCatLabel(e.target.value)}
+                placeholder="Nome da nova categoria"
+                maxLength={60}
+              />
+              <Button onClick={createCategory} disabled={busy || newCatLabel.trim().length < 2}>
+                <Plus className="h-4 w-4 mr-1" />Criar
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {categories.length === 0 && <p className="text-sm text-muted-foreground">Sem categorias.</p>}
+              {categories.map((c) => (
+                <div key={c.value} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{c.label}</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">{c.value}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setEditCat(c); setEditCatLabel(c.label); }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => deleteCategory(c.value, c.label)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>Todos os utilizadores</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {others.map((p) => {
@@ -437,6 +549,52 @@ function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reject with reason dialog */}
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o) { setRejectTarget(null); setRejectReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar conteúdo</DialogTitle>
+            <DialogDescription>{rejectTarget?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Motivo da rejeição *</Label>
+            <Textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Explique ao autor o que precisa ser corrigido (mín. 3, máx. 500 caracteres)."
+              maxLength={500}
+              rows={5}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">{rejectReason.length}/500</p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmRejectTrack} disabled={busy || rejectReason.trim().length < 3}>
+              <X className="h-4 w-4 mr-1" />Rejeitar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit category dialog */}
+      <Dialog open={!!editCat} onOpenChange={(o) => { if (!o) setEditCat(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear categoria</DialogTitle>
+            <DialogDescription>O identificador interno ({editCat?.value}) não muda.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Novo nome</Label>
+            <Input value={editCatLabel} onChange={(e) => setEditCatLabel(e.target.value)} maxLength={60} autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditCat(null)}>Cancelar</Button>
+            <Button onClick={renameCategory} disabled={busy || editCatLabel.trim().length < 2}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

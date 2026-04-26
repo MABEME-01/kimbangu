@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { getSignedUrl, getSignedUrls } from "@/lib/storage";
+import { supabase } from "@/integrations/supabase/client";
 
 type Props = {
   pdfPath: string;
@@ -11,9 +12,24 @@ type Props = {
   imagePaths: string[];
   title: string;
   allowDownload: boolean;
+  trackId?: string;
+  countable?: boolean;
 };
 
-export function MediaViewer({ pdfPath, audioPath, imagePaths, title, allowDownload }: Props) {
+export function MediaViewer({ pdfPath, audioPath, imagePaths, title, allowDownload, trackId, countable }: Props) {
+  const playedRef = useRef(false);
+  const downloadedRef = useRef(false);
+
+  const onPlay = () => {
+    if (!countable || !trackId || playedRef.current) return;
+    playedRef.current = true;
+    supabase.rpc("increment_track_play", { _track_id: trackId });
+  };
+  const onDownload = () => {
+    if (!countable || !trackId || downloadedRef.current) return;
+    downloadedRef.current = true;
+    supabase.rpc("increment_track_download", { _track_id: trackId });
+  };
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -56,6 +72,7 @@ export function MediaViewer({ pdfPath, audioPath, imagePaths, title, allowDownlo
               controlsList={allowDownload ? undefined : "nodownload"}
               className="w-full"
               src={audioUrl}
+              onPlay={onPlay}
             />
           </CardContent>
         </Card>
@@ -74,7 +91,7 @@ export function MediaViewer({ pdfPath, audioPath, imagePaths, title, allowDownlo
             )}
             {allowDownload && pdfUrl && (
               <Button size="sm" variant="outline" asChild>
-                <a href={pdfUrl} target="_blank" rel="noreferrer" download>
+                <a href={pdfUrl} target="_blank" rel="noreferrer" download onClick={onDownload}>
                   <Download className="h-4 w-4 mr-2" />Descarregar
                 </a>
               </Button>

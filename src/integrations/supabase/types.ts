@@ -89,6 +89,50 @@ export type Database = {
         }
         Relationships: []
       }
+      track_history: {
+        Row: {
+          changed_by: string | null
+          changed_by_name: string | null
+          created_at: string
+          field: string
+          id: string
+          new_value: string | null
+          note: string | null
+          old_value: string | null
+          track_id: string
+        }
+        Insert: {
+          changed_by?: string | null
+          changed_by_name?: string | null
+          created_at?: string
+          field: string
+          id?: string
+          new_value?: string | null
+          note?: string | null
+          old_value?: string | null
+          track_id: string
+        }
+        Update: {
+          changed_by?: string | null
+          changed_by_name?: string | null
+          created_at?: string
+          field?: string
+          id?: string
+          new_value?: string | null
+          note?: string | null
+          old_value?: string | null
+          track_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "track_history_track_id_fkey"
+            columns: ["track_id"]
+            isOneToOne: false
+            referencedRelation: "tracks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tracks: {
         Row: {
           allow_download: boolean
@@ -97,13 +141,16 @@ export type Database = {
           category: string
           created_at: string
           description: string | null
+          download_count: number
           id: string
           image_paths: string[]
           pdf_path: string
+          play_count: number
           rejection_reason: string | null
           status: string
           title: string
           uploaded_by: string | null
+          view_count: number
         }
         Insert: {
           allow_download?: boolean
@@ -112,13 +159,16 @@ export type Database = {
           category: string
           created_at?: string
           description?: string | null
+          download_count?: number
           id?: string
           image_paths?: string[]
           pdf_path: string
+          play_count?: number
           rejection_reason?: string | null
           status?: string
           title: string
           uploaded_by?: string | null
+          view_count?: number
         }
         Update: {
           allow_download?: boolean
@@ -127,13 +177,16 @@ export type Database = {
           category?: string
           created_at?: string
           description?: string | null
+          download_count?: number
           id?: string
           image_paths?: string[]
           pdf_path?: string
+          play_count?: number
           rejection_reason?: string | null
           status?: string
           title?: string
           uploaded_by?: string | null
+          view_count?: number
         }
         Relationships: [
           {
@@ -175,6 +228,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      increment_track_download: {
+        Args: { _track_id: string }
+        Returns: undefined
+      }
+      increment_track_play: { Args: { _track_id: string }; Returns: undefined }
+      increment_track_view: { Args: { _track_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "uploader" | "user"

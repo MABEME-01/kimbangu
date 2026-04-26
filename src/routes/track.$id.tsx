@@ -6,10 +6,11 @@ import { Header } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { categoryLabel, fetchCategories } from "@/lib/categories";
-import { ArrowLeft, Trash2, FileDown, Pencil, AlertCircle, Hourglass, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Trash2, FileDown, Pencil, AlertCircle, Hourglass, CheckCircle2, Eye, Download, Play, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import jsPDF from "jspdf";
 import { MediaViewer } from "@/components/app/MediaViewer";
+import { TrackHistory } from "@/components/app/TrackHistory";
 
 export const Route = createFileRoute("/track/$id")({
   component: TrackPage,
@@ -28,6 +29,9 @@ type Track = {
   status: string;
   allow_download: boolean;
   rejection_reason: string | null;
+  view_count: number;
+  download_count: number;
+  play_count: number;
 };
 
 function TrackPage() {
@@ -36,6 +40,7 @@ function TrackPage() {
   const navigate = useNavigate();
   const [track, setTrack] = useState<Track | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resubmitting, setResubmitting] = useState(false);
 
   useEffect(() => {
     fetchCategories();
@@ -44,6 +49,15 @@ function TrackPage() {
       setLoading(false);
     });
   }, [id]);
+
+  // Increment view once per session per track for approved content
+  useEffect(() => {
+    if (!track || track.status !== "approved") return;
+    const key = `viewed:${track.id}`;
+    if (typeof window === "undefined" || sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    supabase.rpc("increment_track_view", { _track_id: track.id });
+  }, [track?.id, track?.status]);
 
   if (loading) return <div className="min-h-screen bg-background"><Header /><p className="container mx-auto p-8 text-muted-foreground">A carregar...</p></div>;
   if (!track) return <div className="min-h-screen bg-background"><Header /><p className="container mx-auto p-8">Não encontrado.</p></div>;
@@ -55,6 +69,7 @@ function TrackPage() {
 
   const canEdit = isAdmin || isOwner;
   const canDelete = canEdit;
+  const canSeeHistory = isAdmin || isOwner || track.status === "approved";
 
   const onDelete = async () => {
     if (!confirm("Eliminar este conteúdo? Esta ação não pode ser desfeita.")) return;
@@ -62,6 +77,19 @@ function TrackPage() {
     if (error) return toast.error(error.message);
     toast.success("Eliminado.");
     navigate({ to: "/library" });
+  };
+
+  const resubmit = async () => {
+    if (!isOwner) return;
+    setResubmitting(true);
+    const { error } = await supabase
+      .from("tracks")
+      .update({ status: "pending", rejection_reason: null })
+      .eq("id", track.id);
+    setResubmitting(false);
+    if (error) return toast.error(error.message);
+    toast.success("Envio reenviado para revisão do administrador.");
+    setTrack({ ...track, status: "pending", rejection_reason: null });
   };
 
   const exportDetailsPdf = () => {
@@ -118,16 +146,30 @@ function TrackPage() {
     }
     if (track.status === "rejected") {
       return (
-        <div className="mb-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4 flex gap-3">
-          <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
-          <div className="text-sm">
-            <p className="font-medium text-destructive">Envio rejeitado</p>
-            {track.rejection_reason ? (
-              <p className="text-foreground/80 mt-1"><span className="font-medium">Motivo:</span> {track.rejection_reason}</p>
-            ) : (
-              <p className="text-muted-foreground mt-1">O administrador rejeitou este envio. Pode editar o conteúdo e voltar a submeter.</p>
-            )}
+        <div className="mb-6 rounded-lg border border-destructive/40 bg-destructive/10 p-4 space-y-3">
+          <div className="flex gap-3">
+            <AlertCircle className="h-5 w-5 text-destructive mt-0.5 shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium text-destructive">Envio rejeitado</p>
+              {track.rejection_reason ? (
+                <p className="text-foreground/80 mt-1"><span className="font-medium">Motivo:</span> {track.rejection_reason}</p>
+              ) : (
+                <p className="text-muted-foreground mt-1">O administrador rejeitou este envio. Pode editar e voltar a submeter.</p>
+              )}
+            </div>
           </div>
+          {isOwner && (
+            <div className="flex flex-wrap gap-2 pl-8">
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/track/$id/edit" params={{ id: track.id }}>
+                  <Pencil className="h-4 w-4 mr-1" />Editar e reenviar
+                </Link>
+              </Button>
+              <Button size="sm" disabled={resubmitting} onClick={resubmit}>
+                <RefreshCw className="h-4 w-4 mr-1" />{resubmitting ? "A reenviar..." : "Reenviar como está"}
+              </Button>
+            </div>
+          )}
         </div>
       );
     }
@@ -176,6 +218,13 @@ function TrackPage() {
               <CheckCircle2 className="h-3 w-3" /> Publicado
             </Badge>
           )}
+          {track.status === "approved" && (
+            <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" /> {track.view_count} visualização(ões)</span>
+              {track.audio_path && <span className="inline-flex items-center gap-1"><Play className="h-3.5 w-3.5" /> {track.play_count} reprodução(ões)</span>}
+              {track.allow_download && <span className="inline-flex items-center gap-1"><Download className="h-3.5 w-3.5" /> {track.download_count} descarga(s)</span>}
+            </div>
+          )}
           {track.description && <p className="mt-3 text-muted-foreground whitespace-pre-wrap">{track.description}</p>}
         </div>
 
@@ -185,7 +234,15 @@ function TrackPage() {
           imagePaths={track.image_paths}
           title={track.title}
           allowDownload={track.allow_download}
+          trackId={track.id}
+          countable={track.status === "approved"}
         />
+
+        {canSeeHistory && (
+          <div className="mt-8">
+            <TrackHistory trackId={track.id} />
+          </div>
+        )}
       </div>
     </div>
   );
