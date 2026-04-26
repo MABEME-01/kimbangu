@@ -316,7 +316,7 @@ function AdminPage() {
                 <div className="flex gap-2 shrink-0">
                   <Button size="sm" variant="outline" disabled={busy} onClick={() => openPreview(t)}><Eye className="h-4 w-4 mr-1" />Ver</Button>
                   <Button size="sm" disabled={busy} onClick={() => approveTrack(t.id)}><Check className="h-4 w-4 mr-1" />Aprovar</Button>
-                  <Button size="sm" variant="outline" disabled={busy} onClick={() => rejectTrack(t.id)}><X className="h-4 w-4 mr-1" />Rejeitar</Button>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => openRejectDialog(t.id, t.title)}><X className="h-4 w-4 mr-1" />Rejeitar</Button>
                 </div>
               </div>
             ))}
