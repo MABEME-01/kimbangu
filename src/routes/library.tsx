@@ -230,7 +230,7 @@ function LibraryPage() {
               {totalPages > 1 && <span>Página {page} de {totalPages}</span>}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <div className="grid grid-cols-2 gap-3 sm:gap-5">
               {paged.map((t) => (
                 <Link key={t.id} to="/track/$id" params={{ id: t.id }} className="group">
                   <Card className="h-full overflow-hidden border-border/60 transition hover:shadow-[var(--shadow-elegant)] hover:-translate-y-0.5">
