@@ -57,6 +57,14 @@ function AdminPage() {
   const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
   const [previewAudioUrl, setPreviewAudioUrl] = useState<string | null>(null);
   const [previewImageUrls, setPreviewImageUrls] = useState<string[]>([]);
+  // Rejection dialog
+  const [rejectTarget, setRejectTarget] = useState<{ id: string; title: string } | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  // Category management
+  const { categories } = useCategories();
+  const [newCatLabel, setNewCatLabel] = useState("");
+  const [editCat, setEditCat] = useState<{ value: string; label: string } | null>(null);
+  const [editCatLabel, setEditCatLabel] = useState("");
 
   const load = async () => {
     const { data: profs } = await supabase.from("profiles").select("*").order("created_at", { ascending: false });
