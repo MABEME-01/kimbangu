@@ -6,10 +6,14 @@ import { Header } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Check, X, Shield, Mail, Trash2, MailOpen, ArrowUpDown, ChevronLeft, ChevronRight, FileText, Eye, Music as MusicIcon } from "lucide-react";
+import { Check, X, Shield, Mail, Trash2, MailOpen, ArrowUpDown, ChevronLeft, ChevronRight, FileText, Eye, Music as MusicIcon, Tag, Plus, Pencil } from "lucide-react";
 import { getSignedUrl } from "@/lib/storage";
+import { fetchCategories, useCategories } from "@/lib/categories";
 
 export const Route = createFileRoute("/admin")({
   component: AdminPage,
