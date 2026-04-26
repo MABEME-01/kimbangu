@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Header } from "@/components/app/Header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -78,7 +79,7 @@ function AuthPage() {
                   </div>
                   <div>
                     <Label htmlFor="si-pass">Palavra-passe</Label>
-                    <Input id="si-pass" type="password" required value={siPass} onChange={(e) => setSiPass(e.target.value)} />
+                    <PasswordInput id="si-pass" required value={siPass} onChange={(e) => setSiPass(e.target.value)} />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "A entrar..." : "Entrar"}
@@ -98,7 +99,7 @@ function AuthPage() {
                   </div>
                   <div>
                     <Label htmlFor="su-pass">Palavra-passe</Label>
-                    <Input id="su-pass" type="password" required minLength={6} value={suPass} onChange={(e) => setSuPass(e.target.value)} />
+                    <PasswordInput id="su-pass" required minLength={6} value={suPass} onChange={(e) => setSuPass(e.target.value)} />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
                     {loading ? "A criar..." : "Criar conta"}
