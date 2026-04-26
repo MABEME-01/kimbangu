@@ -484,6 +484,44 @@ function AdminPage() {
         </Dialog>
 
         <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><Tag className="h-5 w-5" /> Categorias ({categories.length})</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={newCatLabel}
+                onChange={(e) => setNewCatLabel(e.target.value)}
+                placeholder="Nome da nova categoria"
+                maxLength={60}
+              />
+              <Button onClick={createCategory} disabled={busy || newCatLabel.trim().length < 2}>
+                <Plus className="h-4 w-4 mr-1" />Criar
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {categories.length === 0 && <p className="text-sm text-muted-foreground">Sem categorias.</p>}
+              {categories.map((c) => (
+                <div key={c.value} className="flex items-center justify-between gap-2 rounded-lg border border-border p-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{c.label}</p>
+                    <p className="text-xs text-muted-foreground font-mono truncate">{c.value}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => { setEditCat(c); setEditCatLabel(c.label); }}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="sm" variant="outline" disabled={busy} onClick={() => deleteCategory(c.value, c.label)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
           <CardHeader><CardTitle>Todos os utilizadores</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {others.map((p) => {
@@ -511,6 +549,52 @@ function AdminPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Reject with reason dialog */}
+      <Dialog open={!!rejectTarget} onOpenChange={(o) => { if (!o) { setRejectTarget(null); setRejectReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rejeitar conteúdo</DialogTitle>
+            <DialogDescription>{rejectTarget?.title}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Motivo da rejeição *</Label>
+            <Textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Explique ao autor o que precisa ser corrigido (mín. 3, máx. 500 caracteres)."
+              maxLength={500}
+              rows={5}
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground">{rejectReason.length}/500</p>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>Cancelar</Button>
+            <Button variant="destructive" onClick={confirmRejectTrack} disabled={busy || rejectReason.trim().length < 3}>
+              <X className="h-4 w-4 mr-1" />Rejeitar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit category dialog */}
+      <Dialog open={!!editCat} onOpenChange={(o) => { if (!o) setEditCat(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Renomear categoria</DialogTitle>
+            <DialogDescription>O identificador interno ({editCat?.value}) não muda.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Novo nome</Label>
+            <Input value={editCatLabel} onChange={(e) => setEditCatLabel(e.target.value)} maxLength={60} autoFocus />
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setEditCat(null)}>Cancelar</Button>
+            <Button onClick={renameCategory} disabled={busy || editCatLabel.trim().length < 2}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
