@@ -1,16 +1,56 @@
-export const CATEGORIES = [
-  { value: "adoracao", label: "Adoração a Deus" },
-  { value: "alegria", label: "Alegria" },
-  { value: "alertas", label: "Alertas de Deus" },
-  { value: "casamento", label: "Casamento" },
-  { value: "generativas", label: "Generativas / Históricas" },
-  { value: "louvor", label: "Louvor a Deus" },
-  { value: "morte", label: "Morte" },
-  { value: "reflexao", label: "Reflexão" },
-  { value: "suplicas", label: "Súplicas ao Senhor" },
-] as const;
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
-export type CategoryValue = typeof CATEGORIES[number]["value"];
+export type Category = { value: string; label: string };
+export type CategoryValue = string;
 
-export const categoryLabel = (v: string) =>
-  CATEGORIES.find((c) => c.value === v)?.label ?? v;
+// In-memory cache so multiple components share one fetch
+let cache: Category[] | null = null;
+let inflight: Promise<Category[]> | null = null;
+const listeners = new Set<(cats: Category[]) => void>();
+
+export async function fetchCategories(force = false): Promise<Category[]> {
+  if (!force && cache) return cache;
+  if (!force && inflight) return inflight;
+  inflight = supabase
+    .from("categories")
+    .select("value,label")
+    .order("label", { ascending: true })
+    .then(({ data }) => {
+      cache = (data ?? []) as Category[];
+      listeners.forEach((cb) => cb(cache!));
+      inflight = null;
+      return cache;
+    });
+  return inflight;
+}
+
+export function useCategories() {
+  const [cats, setCats] = useState<Category[]>(cache ?? []);
+  const [loading, setLoading] = useState(!cache);
+  useEffect(() => {
+    let active = true;
+    fetchCategories().then((c) => {
+      if (active) {
+        setCats(c);
+        setLoading(false);
+      }
+    });
+    const cb = (c: Category[]) => active && setCats(c);
+    listeners.add(cb);
+    return () => {
+      active = false;
+      listeners.delete(cb);
+    };
+  }, []);
+  return { categories: cats, loading, refresh: () => fetchCategories(true) };
+}
+
+export function categoryLabel(value: string): string {
+  return cache?.find((c) => c.value === value)?.label ?? value;
+}
+
+// Convenience: trigger eager load on app startup
+export function preloadCategories() {
+  fetchCategories();
+}
