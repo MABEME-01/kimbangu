@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrl } from "@/lib/storage";
 import { Header } from "@/components/app/Header";
-import { categoryLabel, type CategoryValue } from "@/lib/categories";
+import { categoryLabel } from "@/lib/categories";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ type Track = {
   title: string;
   author: string | null;
   description: string | null;
-  category: CategoryValue;
+  category: string;
   pdf_path: string;
   audio_path: string | null;
   image_paths: string[];
@@ -60,6 +60,7 @@ function AuthorPage() {
       .from("tracks")
       .select("id,title,author,description,category,pdf_path,audio_path,image_paths,created_at")
       .eq("author", decodedName)
+      .eq("status", "approved")
       .order("title", { ascending: true })
       .then(({ data }) => {
         setTracks((data ?? []) as Track[]);
@@ -71,6 +72,8 @@ function AuthorPage() {
   const currentPage = Math.min(page, totalPages);
   const paged = tracks.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const setPage = (p: number) => navigate({ search: { page: p } });
+  const startIdx = tracks.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endIdx = Math.min(currentPage * PAGE_SIZE, tracks.length);
 
   return (
     <div className="min-h-screen bg-background">
@@ -89,7 +92,9 @@ function AuthorPage() {
               <h1 className="text-2xl sm:text-3xl font-bold">{decodedName}</h1>
             </div>
           </div>
-          <p className="mt-3 text-sm opacity-90">{tracks.length} conteúdo(s) deste autor</p>
+          <p className="mt-3 text-sm opacity-90">
+            <span className="font-semibold">{tracks.length}</span> conteúdo(s) deste autor
+          </p>
         </div>
       </section>
 
@@ -100,6 +105,9 @@ function AuthorPage() {
           <Card><CardContent className="py-16 text-center text-muted-foreground">Nenhum conteúdo deste autor.</CardContent></Card>
         ) : (
           <>
+            {tracks.length > PAGE_SIZE && (
+              <p className="mb-4 text-sm text-muted-foreground">A mostrar {startIdx}–{endIdx} de {tracks.length}</p>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {paged.map((t) => (
                 <Link key={t.id} to="/track/$id" params={{ id: t.id }} className="group">

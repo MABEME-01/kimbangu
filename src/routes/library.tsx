@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getSignedUrl } from "@/lib/storage";
 import { Header } from "@/components/app/Header";
-import { CATEGORIES, categoryLabel, type CategoryValue } from "@/lib/categories";
+import { useCategories, categoryLabel } from "@/lib/categories";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,7 +31,7 @@ type Track = {
   title: string;
   author: string | null;
   description: string | null;
-  category: CategoryValue;
+  category: string;
   pdf_path: string;
   audio_path: string | null;
   image_paths: string[];
@@ -60,6 +60,7 @@ function LibraryPage() {
     page: raw.page ?? 1,
   };
   const navigate = Route.useNavigate();
+  const { categories } = useCategories();
   const selectedCats = useMemo(
     () => (search.cats ? search.cats.split(",").filter(Boolean) : []),
     [search.cats]
@@ -116,6 +117,8 @@ function LibraryPage() {
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const page = Math.min(search.page, totalPages);
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const startIdx = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endIdx = Math.min(page * PAGE_SIZE, filtered.length);
 
   return (
     <div className="min-h-screen bg-background">
@@ -164,7 +167,7 @@ function LibraryPage() {
                 <DialogTitle>Selecionar categorias</DialogTitle>
               </DialogHeader>
               <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-y-auto pr-1">
-                {CATEGORIES.map((c) => {
+                {categories.map((c) => {
                   const checked = draftCats.includes(c.value);
                   return (
                     <label key={c.value} className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-2 cursor-pointer hover:bg-accent">
@@ -216,6 +219,14 @@ function LibraryPage() {
           </Card>
         ) : (
           <>
+            <div className="mb-4 flex items-center justify-between text-sm text-muted-foreground">
+              <span>
+                <span className="font-medium text-foreground">{filtered.length}</span> resultado(s)
+                {filtered.length > PAGE_SIZE && <> · A mostrar {startIdx}–{endIdx}</>}
+              </span>
+              {totalPages > 1 && <span>Página {page} de {totalPages}</span>}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
               {paged.map((t) => (
                 <Link key={t.id} to="/track/$id" params={{ id: t.id }} className="group">
