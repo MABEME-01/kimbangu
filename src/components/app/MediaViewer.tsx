@@ -72,6 +72,7 @@ export function MediaViewer({ pdfPath, audioPath, imagePaths, title, allowDownlo
               controlsList={allowDownload ? undefined : "nodownload"}
               className="w-full"
               src={audioUrl}
+              onPlay={onPlay}
             />
           </CardContent>
         </Card>
