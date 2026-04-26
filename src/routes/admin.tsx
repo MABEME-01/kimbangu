@@ -348,7 +348,7 @@ function AdminPage() {
             <DialogFooter className="gap-2 sm:gap-2">
               {previewTrack && (
                 <>
-                  <Button variant="outline" disabled={busy} onClick={() => { const id = previewTrack.id; setPreviewTrack(null); rejectTrack(id); }}>
+                  <Button variant="outline" disabled={busy} onClick={() => { const id = previewTrack.id; const title = previewTrack.title; setPreviewTrack(null); openRejectDialog(id, title); }}>
                     <X className="h-4 w-4 mr-1" />Rejeitar
                   </Button>
                   <Button disabled={busy} onClick={() => { const id = previewTrack.id; setPreviewTrack(null); approveTrack(id); }}>
