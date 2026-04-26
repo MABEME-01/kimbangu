@@ -12,16 +12,17 @@ const listeners = new Set<(cats: Category[]) => void>();
 export async function fetchCategories(force = false): Promise<Category[]> {
   if (!force && cache) return cache;
   if (!force && inflight) return inflight;
-  inflight = supabase
-    .from("categories")
-    .select("value,label")
-    .order("label", { ascending: true })
-    .then(({ data }) => {
-      cache = (data ?? []) as Category[];
-      listeners.forEach((cb) => cb(cache!));
-      inflight = null;
-      return cache;
-    });
+  inflight = (async () => {
+    const { data } = await supabase
+      .from("categories")
+      .select("value,label")
+      .order("label", { ascending: true });
+    const next = (data ?? []) as Category[];
+    cache = next;
+    listeners.forEach((cb) => cb(next));
+    inflight = null;
+    return next;
+  })();
   return inflight;
 }
 
@@ -50,7 +51,6 @@ export function categoryLabel(value: string): string {
   return cache?.find((c) => c.value === value)?.label ?? value;
 }
 
-// Convenience: trigger eager load on app startup
 export function preloadCategories() {
   fetchCategories();
 }
