@@ -182,14 +182,76 @@ function AdminPage() {
     load();
   };
 
-  const rejectTrack = async (id: string) => {
-    if (!confirm("Rejeitar este conteúdo? Ficará oculto da biblioteca.")) return;
+  const openRejectDialog = (id: string, title: string) => {
+    setRejectTarget({ id, title });
+    setRejectReason("");
+  };
+
+  const confirmRejectTrack = async () => {
+    if (!rejectTarget) return;
+    const reason = rejectReason.trim();
+    if (reason.length < 3) return toast.error("Indique um motivo (mínimo 3 caracteres).");
+    if (reason.length > 500) return toast.error("Motivo muito longo (máx. 500).");
     setBusy(true);
-    const { error } = await supabase.from("tracks").update({ status: "rejected" }).eq("id", id);
+    const { error } = await supabase
+      .from("tracks")
+      .update({ status: "rejected", rejection_reason: reason })
+      .eq("id", rejectTarget.id);
     setBusy(false);
     if (error) return toast.error(error.message);
-    toast.success("Conteúdo rejeitado.");
+    toast.success("Conteúdo rejeitado e motivo enviado ao autor.");
+    setRejectTarget(null);
+    setRejectReason("");
+    setPreviewTrack(null);
     load();
+  };
+
+  // Category management
+  const slug = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50);
+
+  const createCategory = async () => {
+    const label = newCatLabel.trim();
+    if (label.length < 2) return toast.error("Nome muito curto.");
+    if (label.length > 60) return toast.error("Nome muito longo.");
+    let value = slug(label);
+    if (!value) return toast.error("Nome inválido.");
+    if (categories.some((c) => c.label.toLowerCase() === label.toLowerCase())) return toast.error("Já existe uma categoria com esse nome.");
+    if (categories.some((c) => c.value === value)) value = `${value}-${Date.now().toString(36).slice(-4)}`;
+    setBusy(true);
+    const { error } = await supabase.from("categories").insert({ value, label });
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria criada.");
+    setNewCatLabel("");
+    fetchCategories(true);
+  };
+
+  const renameCategory = async () => {
+    if (!editCat) return;
+    const label = editCatLabel.trim();
+    if (label.length < 2 || label.length > 60) return toast.error("Nome inválido (2-60 caracteres).");
+    if (categories.some((c) => c.value !== editCat.value && c.label.toLowerCase() === label.toLowerCase())) {
+      return toast.error("Já existe outra categoria com esse nome.");
+    }
+    setBusy(true);
+    const { error } = await supabase.from("categories").update({ label }).eq("value", editCat.value);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria renomeada.");
+    setEditCat(null);
+    fetchCategories(true);
+  };
+
+  const deleteCategory = async (value: string, label: string) => {
+    const { count } = await supabase.from("tracks").select("id", { count: "exact", head: true }).eq("category", value);
+    if ((count ?? 0) > 0) return toast.error(`Esta categoria está a ser usada por ${count} hino(s). Reatribua-os antes de eliminar.`);
+    if (!confirm(`Eliminar a categoria "${label}"?`)) return;
+    setBusy(true);
+    const { error } = await supabase.from("categories").delete().eq("value", value);
+    setBusy(false);
+    if (error) return toast.error(error.message);
+    toast.success("Categoria eliminada.");
+    fetchCategories(true);
   };
 
   const openPreview = async (t: PendingTrack) => {
