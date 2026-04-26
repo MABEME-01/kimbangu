@@ -80,7 +80,7 @@ function LibraryPage() {
   useEffect(() => {
     supabase
       .from("tracks")
-      .select("id,title,author,description,category,pdf_path,audio_path,image_paths,created_at")
+      .select("id,title,author,description,category,pdf_path,audio_path,image_paths,created_at,view_count,download_count,play_count")
       .eq("status", "approved")
       .order("title", { ascending: true })
       .then(({ data }) => {
